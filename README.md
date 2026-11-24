@@ -31,7 +31,7 @@ Mod support is not a goal of this project; the launcher's Mods page comes with t
 
 ## Installation
 
-1. Download `SouthParkRecompiled-v0.9.0-windows-x64.zip` from [Releases](../../releases) and
+1. Download `SouthParkRecompiled-v0.9.1-windows-x64.zip` from [Releases](../../releases) and
    unpack it anywhere.
 2. Run `SouthParkRecompiled.exe`.
 3. In the launcher, pick your South Park (USA) dump in `.z64` format. If yours is `.v64` or

@@ -31,7 +31,7 @@ ROM в репозиторий не входит и никогда не буде�
 
 ## Установка
 
-1. Скачайте `SouthParkRecompiled-v0.9.0-windows-x64.zip` со страницы [Releases](../../releases)
+1. Скачайте `SouthParkRecompiled-v0.9.1-windows-x64.zip` со страницы [Releases](../../releases)
    и распакуйте в любую папку.
 2. Запустите `SouthParkRecompiled.exe`.
 3. В лаунчере укажите свой дамп South Park (USA) в формате `.z64`. Если дамп в `.v64` или
