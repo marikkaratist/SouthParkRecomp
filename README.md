@@ -69,6 +69,9 @@ Texture packs are `.rtz` mods, like the HD packs for Zelda 64: Recompiled or Ban
    ```
    SouthParkRecompiled.exe --dump-textures C:\sp\dump
    ```
+   The folder is optional: with just `--dump-textures` (handy as an extra launch argument in a
+   launcher such as Playnite) the dump goes to `%LOCALAPPDATA%\SouthParkRecompiled\texture_dump`.
+   Textures already in the folder are not written again, so you can dump over several sessions.
 2. Decode, upscale 4x and pack (Python with numpy and Pillow):
    ```
    python tools/make_texture_pack.py all C:\sp\dump C:\sp\work --esrgan <path to realesrgan-ncnn-vulkan.exe> --packer build\texture_packer.exe

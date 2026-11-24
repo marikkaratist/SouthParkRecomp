@@ -1,6 +1,7 @@
 """Builds an upscaled texture pack (.rtz) from textures dumped by the game.
 
-    1. Dump: play with  SouthParkRecompiled.exe --dump-textures <dump folder>
+    1. Dump: play with  SouthParkRecompiled.exe --dump-textures [dump folder]
+       (without a folder: %LOCALAPPDATA%\SouthParkRecompiled\texture_dump)
        Every texture the game uses is written once (raw TMEM and tile parameters, named by
        its RT64 hash). Play through the parts of the game you want covered.
     2. Build:

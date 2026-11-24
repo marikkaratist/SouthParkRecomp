@@ -26,9 +26,14 @@ namespace ultramodern::renderer {
 //   --find-player     print the player object's position-like floats once
 //   --teleport <x> <z> move the player 47 s after start (the game moves it back: not usable yet)
 //   --watchdog <s>    if no graphics task arrives for s seconds, write every thread's call stack
+//   --dump-textures [folder]  dump every texture once for tools/make_texture_pack.py
+//                     (default folder: texture_dump in the settings folder)
 // On Windows a crash, abort or uncaught exception writes a call stack to stderr.
 namespace southpark::dev {
     void parse_args(int argc, char** argv);
+    // --dump-textures [folder]: call after the program id is set (the default folder is in the
+    // settings folder) and before the renderer starts.
+    void apply_texture_dump();
     bool autostart_requested();
     const std::filesystem::path& rom_path();
 

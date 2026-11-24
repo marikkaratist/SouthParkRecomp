@@ -549,7 +549,9 @@ SP_MATERIAL_LIMIT=30 SP_ITEM_LIMIT=100, the frame is complete. With --trace-inpu
 
 ## Texture packs (2026-11-25)
 
-`--dump-textures <folder>` sets `RT64_DUMP_TEXTURES`, which the renderer reads when it starts
+`--dump-textures [folder]` sets `RT64_DUMP_TEXTURES` (default folder: `texture_dump` in the settings
+folder, chosen once the program id is set; on Windows the variable is passed as a wide string so a
+non-ASCII user profile works), which the renderer reads when it starts
 (`runtime-patches/0006`) and turns on RT64's texture dump, as the inspector's "Dump textures" does:
 for every texture, once, the whole TMEM (`<hash>.v<version>.tmem`), the tile parameters
 (`.tile.json`) and the RDRAM it came from (`.rice.*`, for Rice hashes).

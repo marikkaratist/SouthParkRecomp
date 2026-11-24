@@ -69,6 +69,9 @@ python tools/rom_prepare.py "<путь к дампу>" rom/southpark.us.z64
    ```
    SouthParkRecompiled.exe --dump-textures C:\sp\dump
    ```
+   Папку можно не указывать: с одним `--dump-textures` (удобно как аргумент запуска в лаунчере,
+   например в Playnite) дамп идёт в `%LOCALAPPDATA%\SouthParkRecompiled\texture_dump`.
+   Текстуры, которые уже есть в папке, повторно не пишутся, так что дамп можно собирать за несколько заходов.
 2. Декодирование, апскейл в 4 раза и упаковка (Python с numpy и Pillow):
    ```
    python tools/make_texture_pack.py all C:\sp\dump C:\sp\work --esrgan <путь к realesrgan-ncnn-vulkan.exe> --packer build\texture_packer.exe

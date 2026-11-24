@@ -1,5 +1,5 @@
 diff --git a/recompui/src/renderer/rt64_render_context.cpp b/recompui/src/renderer/rt64_render_context.cpp
-index a7954c7..c1871e2 100644
+index a7954c7..a7587d5 100644
 --- a/recompui/src/renderer/rt64_render_context.cpp
 +++ b/recompui/src/renderer/rt64_render_context.cpp
 @@ -1,5 +1,8 @@
@@ -11,18 +11,28 @@ index a7954c7..c1871e2 100644
  #include <variant>
  #include <algorithm>
  
-@@ -316,6 +319,16 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+@@ -316,6 +319,26 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
      // Set the application's fullscreen state.
      app->setFullScreen(cur_config.wm_option == ultramodern::renderer::WindowMode::Fullscreen);
  
 +    // Texture dumping for making texture packs, without going through the inspector: every texture
 +    // the game uses is written once to this folder (as the inspector's "Dump textures" does).
++    // On Windows the variable is read as a wide string so folders with non-ASCII names work.
++    std::filesystem::path dump_path;
++#ifdef _WIN32
++    if (const wchar_t* dump_dir = _wgetenv(L"RT64_DUMP_TEXTURES"); dump_dir != nullptr && dump_dir[0] != L'\0') {
++        dump_path = std::filesystem::path(dump_dir);
++    }
++#else
 +    if (const char* dump_dir = std::getenv("RT64_DUMP_TEXTURES"); dump_dir != nullptr && dump_dir[0] != '\0') {
-+        std::filesystem::path dump_path = std::filesystem::u8path(dump_dir);
++        dump_path = std::filesystem::path(dump_dir);
++    }
++#endif
++    if (!dump_path.empty()) {
 +        std::error_code ec;
 +        std::filesystem::create_directories(dump_path, ec);
 +        app->state->dumpingTexturesDirectory = dump_path;
-+        fprintf(stderr, "RT64: dumping textures to %s\n", dump_dir);
++        fprintf(stderr, "RT64: dumping textures to %s\n", reinterpret_cast<const char*>(dump_path.u8string().c_str()));
 +    }
 +
      // Check if the selected device actually supports MSAA sample positions and MSAA for for the formats that will be used

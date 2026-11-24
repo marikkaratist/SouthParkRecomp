@@ -667,7 +667,8 @@ int main(int argc, char** argv) {
     // Initialize program settings.
     recompui::programconfig::set_program_name(southpark::program_name);
     recompui::programconfig::set_program_id(southpark::program_id);
-    
+    southpark::dev::apply_texture_dump();
+
     // Initialize SDL audio and set the output frequency.
     SDL_InitSubSystem(SDL_INIT_AUDIO);
     if (!reset_audio(48000)) {

@@ -16,6 +16,7 @@
 
 #include "southpark_game.h"
 #include "southpark_dev.h"
+#include "util/file.h"
 
 namespace {
     bool autostart = false;
@@ -150,6 +151,29 @@ int southpark::dev::forced_memory_mib() {
     return forced_memory;
 }
 
+namespace {
+    bool dump_textures = false;
+    std::filesystem::path dump_folder;
+}
+
+// Texture dumping for tools/make_texture_pack.py, read by the renderer when it starts
+// (runtime-patches/0006): every texture the game uses is written once to the folder. Without a
+// folder on the command line the dump goes next to the settings, so a launcher entry with just
+// the switch works. The path goes through a wide environment variable on Windows: the default
+// folder sits under the user's profile, whose name may not be ASCII.
+void southpark::dev::apply_texture_dump() {
+    if (!dump_textures) {
+        return;
+    }
+    std::filesystem::path folder = dump_folder.empty() ? recompui::file::get_app_folder_path() / "texture_dump" : dump_folder;
+#ifdef _WIN32
+    _wputenv_s(L"RT64_DUMP_TEXTURES", folder.wstring().c_str());
+#else
+    setenv("RT64_DUMP_TEXTURES", folder.c_str(), 1);
+#endif
+    std::printf("--dump-textures: dumping textures to %s\n", reinterpret_cast<const char*>(folder.u8string().c_str()));
+}
+
 void southpark::dev::parse_args(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "--autostart") == 0) {
@@ -193,14 +217,13 @@ void southpark::dev::parse_args(int argc, char** argv) {
         else if (std::strcmp(argv[i], "--memory") == 0 && i + 1 < argc) {
             forced_memory = std::atoi(argv[++i]);
         }
-        else if (std::strcmp(argv[i], "--dump-textures") == 0 && i + 1 < argc) {
-            // Read by the renderer when it starts (runtime-patches/0006): every texture the game
-            // uses is dumped once into this folder, for tools/make_texture_pack.py.
-#ifdef _WIN32
-            _putenv_s("RT64_DUMP_TEXTURES", argv[++i]);
-#else
-            setenv("RT64_DUMP_TEXTURES", argv[++i], 1);
-#endif
+        else if (std::strcmp(argv[i], "--dump-textures") == 0) {
+            // The folder is optional; apply_texture_dump() picks the default once the program id,
+            // and with it the settings folder, is known.
+            dump_textures = true;
+            if (i + 1 < argc && std::strncmp(argv[i + 1], "--", 2) != 0) {
+                dump_folder = std::filesystem::path(argv[++i]);
+            }
         }
         else if (std::strcmp(argv[i], "--draw-distance") == 0 && i + 1 < argc) {
             forced_distance = static_cast<float>(std::atof(argv[++i]));
