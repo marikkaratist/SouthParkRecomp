@@ -268,6 +268,9 @@ if (WIN32)
     )
 
     target_sources(SouthParkRecompiled PRIVATE ${CMAKE_SOURCE_DIR}/icons/app.rc)
+    # The resource compiler's dependency scan misses the icon file; without this a new
+    # app.ico never reaches the executable.
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/icons/app.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/icons/app.ico)
     target_link_libraries(SouthParkRecompiled PRIVATE SDL2 Winmm.lib)
 endif()
 
