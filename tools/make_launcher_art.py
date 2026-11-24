@@ -149,9 +149,19 @@ def title_sign():
     board = [(30, 70), (860, 20), (880, 560), (60, 600)]
     b = [f'<polygon fill="#6B3A1E" stroke="{INK}" stroke-width="6" points="{pts([(420, 560), (480, 556), (500, 750), (440, 752)])}"/>',
          f'<polygon fill="#9A6A54" stroke="{INK}" stroke-width="7" stroke-linejoin="round" points="{pts(board)}"/>']
-    # Plank seams.
-    for (y0, y1) in [(190, 150), (330, 300), (470, 455)]:
-        b.append(f'<path d="M40,{y0} L866,{y1}" stroke="{INK}" stroke-width="3" fill="none"/>')
+
+    # Plank seams run from the board's left edge to its right edge; both edges lean, so the
+    # ends are worked out on them. The lowest seam passes under "RECOMPILED", not through it.
+    def edge_x(top, bottom, y):
+        return top[0] + (bottom[0] - top[0]) * (y - top[1]) / (bottom[1] - top[1])
+    for (y0, y1) in [(190, 150), (330, 300), (548, 520)]:
+        x0 = edge_x(board[0], board[3], y0) + 2
+        x1 = edge_x(board[1], board[2], y1) - 2
+        b.append(f'<path d="M{x0:.1f},{y0} L{x1:.1f},{y1}" stroke="{INK}" stroke-width="3" fill="none"/>')
+
+    # The post goes into a snowdrift.
+    b.append(f'<ellipse cx="470" cy="742" rx="120" ry="22" fill="{SNOW}"/>'
+             f'<ellipse cx="470" cy="750" rx="96" ry="10" fill="{SNOW_SHADE}"/>')
     return svg(W, H, "".join(b))
 
 

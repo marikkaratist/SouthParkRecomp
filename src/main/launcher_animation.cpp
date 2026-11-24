@@ -24,7 +24,8 @@ namespace {
     // Title board: 900x760 picture units at 0.8 dp per unit, tilted like a hammered-in sign.
     constexpr float title_scale = 0.8f;
     constexpr float title_w = 900.0f * title_scale, title_h = 760.0f * title_scale;
-    constexpr float title_left = 120.0f, title_bottom = 230.0f, title_tilt = -4.0f;
+    // The bottom puts the post's foot about 90 dp into the snowfield (its edge is ~260 dp up).
+    constexpr float title_left = 120.0f, title_bottom = 150.0f, title_tilt = -4.0f;
 
     // Menu on the right, right-aligned like a classic title screen.
     constexpr float menu_right = 150.0f, menu_bottom = 300.0f, menu_width = 620.0f;
