@@ -1,0 +1,76 @@
+# Hand-assigned function names for South Park (USA): <vram> <name>  # evidence
+# These override names carried over from Turok 2 by tools/match_turok2.py.
+
+0x00200500 boot_STVM_MapTLB_tail   # second half of the boot stub's TLB writer; it starts at 0x80000488 in the boot segment
+0x00209C34 game_main               # called by game_entry after osInitialize; never returns in practice
+0x0022BCE8 game_entry              # the boot stub jumps here once the engine is mapped (jalr at 0x800004A4)
+0x0027D704 Debug_SetWatch          # mtc0 WatchLo/WatchHi; Turok 2 func_00201074
+0x0028FBA0 VM_Initialize           # first function of the VM block; reads 0xB00C4000, maps 0x00400000
+0x00291198 STVM_MapTLB             # mtc0 Index/PageMask/EntryHi/EntryLo + tlbwi; same code as the boot stub's
+0x00291218 STVM_UnmapTLB           # second entry point sharing STVM_MapTLB's tail
+0x00291254 STVM_DumpTLB            # mtc0 Index, tlbr, mfc0 PageMask/EntryHi/EntryLo; Turok 2 func_0028EEFC
+0x0029E1C0 __osException_handler   # body of libultra's exception handler (exceptasm.s)
+0x0029E7A8 send_mesg               # exceptasm.s helper, called 14 times from the handler
+0x002A51B0 SNDebug_SetErrorEPC_0   # SN64 debugger stub (Turok 2 us/asm/A3C88.s): mtc0 ErrorEPC
+0x002A51E8 SNDebug_SetErrorEPC_1
+0x002A52CC SNDebug_InvalICache     # cache 0x01 over the whole icache
+0x002A52E8 SNDebug_InvalDCache     # cache 0x00 over the whole dcache
+0x002A531C SNDebug_DumpTLB         # tlbr loop
+0x002A53A0 SNDebug_Handler
+0x002A58EC SNDebug_SaveContext     # sd of every GPR and cop0 register
+
+# libultra / libc functions Turok 2's decomp leaves unnamed, identified by their code
+0x00299758 cosf                    # abs.s first, range check 0x136, polynomial in doubles
+0x0029A570 sinf                    # small-angle shortcut (0xE6/0xFF), same polynomial
+0x0029A6F0 sqrtf                   # sqrt.s $f0, $f12
+0x0029D308 osGetMemSize            # probes RDRAM through KSEG1 with 0x12345678 / 0x87654321
+0x002A05A8 memcpy                  # byte copy loop, returns dst
+
+# Controller Pak library (pfs*.c), linked into the paged module
+0x0040F318 sp_osPfsAllocateFile       # first function of pfsallocatefile.c: followed by __osPfsDeclearPage, __osClearPage
+0x004101E8 __osPfsRequestOneChannel  # pfsgetstatus.c, between __osPfsGetStatus and __osPfsGetOneChannelData
+
+# Renamed so that N64Recomp does not hand it to the runtime: src/game/boot.cpp
+# provides a version that knows about the VM windows in useg.
+0x0029E150 sp_osVirtualToPhysical
+0x0029C0E8 sp_osPiRawStartDma       # was osPiRawStartDma; its only caller is CLoader__Main
+0x0029A700 sp_osAiGetStatus         # was osAiGetStatus; src/game/audio.cpp reports the FIFO state
+0x0029A830 sp_osAiSetNextBuffer     # was osAiSetNextBuffer; same file, remembers the buffer size
+0x0029CC68 sp_osViSetMode           # was osViSetMode; src/game/video.cpp moves the origin one row in for RT64
+0x0029CE68 sp_osViSwapBuffer        # was osViSwapBuffer; same file, keeps the adjusted mode current
+0x0029A718 sp_osAiSetFrequency      # was osAiSetFrequency; src/game/audio.cpp logs the requested rate
+0x0025E124 View_DrawBorder          # black 2-pixel frame around one view; hooked in southpark.us.toml (src/game/video.cpp)
+
+# Controller Pak file system. libultra's own code is kept and recompiled; the sp_ prefix stops
+# N64Recomp from swapping it for the runtime's "no pak" stubs. Only the page read/write and the
+# status query underneath are native (src/game/pak.cpp).
+0x0040F918 sp_osPfsDeleteFile
+0x0040FDB8 sp_osPfsFileState
+0x0040FFF8 sp_osPfsFreeBlocks
+0x004102F0 sp_osPfsInitPak
+0x004104C0 sp_osPfsChecker
+0x00410E78 sp_osPfsReadWriteFile
+0x004112B0 sp_osPfsRepairId
+0x00411460 sp_osPfsFindFile
+0x00411C1C sp_osPfsRWInode
+0x0041203C sp_osPfsSelectBank
+0x004108FC sp_pfs_corrupted_init
+0x00410A48 sp_pfs_corrupted
+0x004115D8 sp_osRepairPackId
+0x004118C0 sp_osCheckPackId
+0x00411A30 sp_osGetId
+0x00411F74 sp_osCheckId
+0x0022C1F8 Controller_ReadPads      # controller state machine: fetches osContGetReadData into 0x800E3C48; hooked (src/game/controls.cpp)
+0x0022BDA0 CPlayer__ReadInput       # Turok 2's CPlayer__ReadInput: fills player+0xAF4 (turn, look, strafe, move, buttons)
+0x00235680 CPlayerList__Update      # per-frame loop over the players; calls CPlayer__ReadInput; hooked after that call
+0x00231D50 CPlayer__ApplyWalkInput  # (player, object, table): move/strafe inputs -> speed at player+0xB20/0xB24; hooked (src/game/controls.cpp)
+0x0022FBC8 CPlayer__DrawHud         # (player, view): the in-game HUD of one player; hooked (src/game/interpolation.cpp)
+0x00236ABC CPlayerList__DrawHuds    # (list, view): calls CPlayer__DrawHud for the players shown in this view; hooked after the call
+0x0025B68C CCamera__Update          # per-frame camera: view and projection matrices, view frustum; hooked (src/game/video.cpp)
+0x002074B0 Game_RunFrame            # main loop body: frame increment from the VI counts; hooked (src/game/update_rate.cpp)
+0x00201878 CScene__LoadVisibleGridSections # loads the grid sections around each camera, at most 128; hooked (src/game/draw_distance.cpp)
+0x0021DB18 InitializeSystemResources # heap from the image end to the top of RDRAM less 512 KiB; hooked (src/game/draw_distance.cpp)
+0x00200A34 CScene__DrawDeferred     # draws the held-back objects (world + 0xFB8, at most 32) farthest first
+0x00201E40 CScene__DrawLevel        # draws the level sections and their objects; holds back see-through ones
+0x0020234C CScene__DrawLevelViews   # the same for each camera; hooked (src/game/draw_distance.cpp)
+0x00281D50 CEmitter__DrawLayer      # a sky (cloud) layer under the camera frustum; hooked (src/game/draw_distance.cpp)

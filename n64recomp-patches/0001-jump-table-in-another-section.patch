@@ -1,0 +1,34 @@
+diff --git a/src/analysis.cpp b/src/analysis.cpp
+index 1608da9..eeb17aa 100644
+--- a/src/analysis.cpp
++++ b/src/analysis.cpp
+@@ -320,14 +320,26 @@ bool N64Recomp::analyze_function(const N64Recomp::Context& context, const N64Rec
+             end_address = stats.jump_tables[i + 1].vram;
+         }
+ 
+-        // TODO this assumes that the jump table is in the same section as the function itself
++        // The jump table is usually in the same section as the function, but not always: when code is
++        // linked into a TLB-mapped address space its rodata can sit in KSEG0. Look the table up in the
++        // other non-relocatable sections before falling back to the function's own rom/vram delta.
+         cur_jtbl.rom = cur_jtbl.vram + func.rom - func.vram;
++        if (cur_jtbl.vram < section->ram_addr || cur_jtbl.vram >= section->ram_addr + section->size) {
++            for (const Section& other : context.sections) {
++                if (!other.relocatable && cur_jtbl.vram >= other.ram_addr && cur_jtbl.vram < other.ram_addr + other.size) {
++                    cur_jtbl.rom = cur_jtbl.vram - other.ram_addr + other.rom_addr;
++                    break;
++                }
++            }
++        }
+         cur_jtbl.section_index = func.section_index;
+ 
+         while (vram < end_address) {
+             // Retrieve the current entry of the jump table
+-            // TODO same as above
+-            uint32_t rom_addr = vram + func.rom - func.vram;
++            uint32_t rom_addr = cur_jtbl.rom + (vram - cur_jtbl.vram);
++            if (rom_addr + sizeof(uint32_t) > context.rom.size()) {
++                break;
++            }
+             uint32_t jtbl_word = byteswap(*reinterpret_cast<const uint32_t*>(&context.rom[rom_addr]));
+ 
+             if (cur_jtbl.got_offset.has_value() && got_ram_addr.has_value()) {

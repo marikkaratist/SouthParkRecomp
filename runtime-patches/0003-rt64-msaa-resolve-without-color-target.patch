@@ -1,0 +1,14 @@
+diff --git a/src/hle/rt64_workload_queue.cpp b/src/hle/rt64_workload_queue.cpp
+index 5a331aa..1504298 100644
+--- a/src/hle/rt64_workload_queue.cpp
++++ b/src/hle/rt64_workload_queue.cpp
+@@ -806,7 +806,8 @@ namespace RT64 {
+                     }
+ 
+                     // Do the resolve if using MSAA while target override is active and we're on the correct framebuffer pair index.
+-                    if (usingMSAA && (overrideTarget != nullptr) && ((uint32_t)overrideTargetFbPairIndex == f)) {
++                    // A pair can have no color target at all (a depth buffer cleared through the color image), so there is nothing to resolve.
++                    if (usingMSAA && (overrideTarget != nullptr) && (colorTarget != nullptr) && ((uint32_t)overrideTargetFbPairIndex == f)) {
+                         overrideTarget->resize(ext.workloadGraphicsWorker, colorTarget->width, colorTarget->height);
+                         overrideTarget->resolveFromTarget(ext.workloadGraphicsWorker, colorTarget, ext.shaderLibrary);
+                     }

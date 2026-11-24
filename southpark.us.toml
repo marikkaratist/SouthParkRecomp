@@ -1,0 +1,293 @@
+# N64Recomp config for South Park (USA).
+#
+# Run from the repository root:
+#   external/N64Recomp/build/N64Recomp southpark.us.toml
+
+[input]
+# The cartridge entry point (0x80000400) is the SN64 boot stub. It only clears
+# BSS and programs the TLB, so it is not recompiled: the runtime sets the stack
+# and calls game_main itself (src/game/boot.cpp, docs/LAYOUT.md).
+symbols_file_path = "symbols/southpark.us.syms.toml"
+rom_file_path = "rom/southpark.us.z64"
+output_func_path = "RecompiledFuncs"
+
+[patches]
+# Replaced by native code in src/game/boot.cpp.
+ignored = [
+    # Reloads the first 1 MiB of the cartridge through raw PI registers and
+    # clears BSS before calling osInitialize and game_main.
+    "game_entry",
+    # The engine's VM pager.
+    "VM_Initialize",
+    "VM_Alloc",
+    # libultra's osVirtualToPhysical under another name (see symbols/manual_names).
+    "sp_osVirtualToPhysical",
+    # libultra's osPiRawStartDma: the engine drives the cartridge itself.
+    "sp_osPiRawStartDma",
+    # libultra's osAiGetStatus and osAiSetNextBuffer: the audio thread needs a
+    # real "FIFO full" answer (src/game/audio.cpp).
+    "sp_osAiGetStatus",
+    "sp_osAiSetNextBuffer",
+    "sp_osAiSetFrequency",
+    # libultra's osViSetMode and osViSwapBuffer: RT64 needs the video origin one
+    # row into the framebuffer (src/game/video.cpp).
+    "sp_osViSetMode",
+    "sp_osViSwapBuffer",
+]
+
+# Hand-written assembly N64Recomp cannot translate: coprocessor 0, TLB and
+# cache instructions. Each one was identified against the same code in Turok 2
+# (turok2-decomp docs/ASM_ORIGIN.md). Stubbed = compiled as an empty function.
+stubs = [
+    # Boot: tail of the TLB writer. Never called: boot is done natively.
+    "boot_STVM_MapTLB_tail",
+    # Engine VM pager's TLB access. The pager is replaced by native code that
+    # keeps the paged module resident, so there is no TLB to program.
+    "STVM_MapTLB",
+    "STVM_UnmapTLB",
+    "STVM_DumpTLB",
+    "__osUnmapTLBAll",
+    # libultra exception handler. Threads and interrupts are done by the runtime.
+    # (Its helper send_mesg needs no entry: N64Recomp ignores it by name.)
+    "__osException_handler",
+    # Debug only: watch registers and the SN64 debugger / crash-dump stub.
+    "Debug_SetWatch",
+    "SNDebug_SetErrorEPC_0",
+    "SNDebug_SetErrorEPC_1",
+    "SNDebug_InvalICache",
+    "SNDebug_InvalDCache",
+    "SNDebug_DumpTLB",
+    "SNDebug_Handler",
+    "SNDebug_SaveContext",
+]
+
+# View_DrawBorder paints a black two-pixel frame around every view, in single
+# player around the whole screen. On a TV that hid the ragged picture edge; in
+# a widescreen window it shows as two vertical lines where the 4:3 picture
+# ends. The hook leaves the function early for a view that fills the screen and
+# keeps the frame between split-screen views (src/game/video.cpp).
+[[patches.hook]]
+func = "View_DrawBorder"
+before_vram = 0x0025E124
+text = "{ extern int sp_skip_view_border(uint8_t* rdram, recomp_context* ctx); if (sp_skip_view_border(rdram, ctx)) return; }"
+
+# Modern controls (src/game/controls.cpp). The first hook sits right after the
+# raw controller state has been fetched, the second right after the player's
+# input structure has been filled in (func_0022BDA0, Turok 2's CPlayer__ReadInput).
+[[patches.hook]]
+func = "Controller_ReadPads"
+before_vram = 0x0022C27C
+text = "{ extern void sp_controls_after_pad_read(uint8_t* rdram, recomp_context* ctx); sp_controls_after_pad_read(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CPlayerList__Update"
+before_vram = 0x002357FC
+text = "{ extern void sp_controls_after_read_input(uint8_t* rdram, recomp_context* ctx); sp_controls_after_read_input(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CPlayer__ApplyWalkInput"
+before_vram = 0x00231D50
+text = "{ extern void sp_controls_walk_table(uint8_t* rdram, recomp_context* ctx); sp_controls_walk_table(rdram, ctx); }"
+
+# Widescreen HUD (src/game/interpolation.cpp): mark the stretch of the display
+# list that holds one player's HUD.
+[[patches.hook]]
+func = "CPlayer__DrawHud"
+before_vram = 0x0022FBC8
+text = "{ extern void sp_hud_begin(uint8_t* rdram, recomp_context* ctx); sp_hud_begin(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CPlayerList__DrawHuds"
+before_vram = 0x00236AFC
+text = "{ extern void sp_hud_end(uint8_t* rdram, recomp_context* ctx); sp_hud_end(rdram, ctx); }"
+
+# Widescreen: widen the frustum the game uses to decide what is in view
+# (src/game/video.cpp).
+[[patches.hook]]
+func = "CCamera__Update"
+before_vram = 0x0025C21C
+text = "{ extern void sp_widen_view_frustum(uint8_t* rdram, recomp_context* ctx); sp_widen_view_frustum(rdram, ctx); }"
+
+# Game update rate: 60 updates a second when the option is on (src/game/update_rate.cpp).
+[[patches.hook]]
+func = "Game_RunFrame"
+before_vram = 0x002078A8
+text = "{ extern void sp_update_rate(uint8_t* rdram, recomp_context* ctx); sp_update_rate(rdram, ctx); }"
+
+# Draw distance: the cameras' far clip scaled after the game sets it, and given back at the start
+# of each camera update (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "CCamera__Update"
+before_vram = 0x0025B68C
+text = "{ extern void sp_draw_distance_restore(uint8_t* rdram, recomp_context* ctx); sp_draw_distance_restore(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CCamera__Update"
+before_vram = 0x0025BEE8
+text = "{ extern void sp_draw_distance_apply(uint8_t* rdram, recomp_context* ctx); sp_draw_distance_apply(rdram, ctx); }"
+
+# Fog moved out with the draw distance: the near plane of the camera's perspective scaled with
+# the far clip (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "CCamera__Update"
+before_vram = 0x0025BFB0
+text = "{ extern void sp_draw_distance_near(uint8_t* rdram, recomp_context* ctx); sp_draw_distance_near(rdram, ctx); }"
+
+# Models in a frame: no limit of 256 (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "func_0021013C"
+before_vram = 0x002101CC
+text = "{ extern void sp_frame_models_room(uint8_t* rdram, recomp_context* ctx); sp_frame_models_room(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_00210290"
+before_vram = 0x002103B8
+text = "{ extern void sp_frame_models_room(uint8_t* rdram, recomp_context* ctx); sp_frame_models_room(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_0020ED10"
+before_vram = 0x0020EEE0
+text = "{ extern void sp_frame_materials_room(uint8_t* rdram, recomp_context* ctx); sp_frame_materials_room(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_0020ED10"
+before_vram = 0x0020EF04
+text = "{ extern void sp_frame_material_address(uint8_t* rdram, recomp_context* ctx); sp_frame_material_address(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_0020ED10"
+before_vram = 0x0020F080
+text = "{ extern void sp_frame_items_room(uint8_t* rdram, recomp_context* ctx); sp_frame_items_room(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_0020ED10"
+before_vram = 0x0020F0A0
+text = "{ extern void sp_frame_item_address(uint8_t* rdram, recomp_context* ctx); sp_frame_item_address(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_0020FB74"
+before_vram = 0x0020FC00
+text = "{ extern void sp_frame_models_release(uint8_t* rdram, recomp_context* ctx); sp_frame_models_release(rdram, ctx); }"
+
+[[patches.hook]]
+func = "Render_ResetBatches"
+before_vram = 0x0020FB48
+text = "{ extern void sp_frame_models_reset(uint8_t* rdram, recomp_context* ctx); sp_frame_models_reset(rdram, ctx); }"
+
+# Grid sections nearest first when the draw distance is raised (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "CScene__LoadVisibleGridSections"
+before_vram = 0x00201878
+text = "{ extern int sp_load_grid_sections(uint8_t* rdram, recomp_context* ctx); if (sp_load_grid_sections(rdram, ctx)) return; }"
+
+# A bigger heap for the resource cache: the game is told it has 12 MiB (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "InitializeSystemResources"
+before_vram = 0x0021DB2C
+text = "{ extern void sp_report_memory_size(uint8_t* rdram, recomp_context* ctx); sp_report_memory_size(rdram, ctx); }"
+
+# Counts cache evictions, for --trace-input (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "CCache__FreeOldestMemEntry"
+before_vram = 0x0021F6F0
+text = "{ extern void sp_count_actor_draw(uint8_t* rdram, recomp_context* ctx); sp_count_actor_draw(rdram, ctx); }"
+
+# Objects held back to be drawn last are drawn at once when the game's list of 32 is full
+# (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "CScene__DrawLevel"
+before_vram = 0x00202118
+text = "{ extern void sp_deferred_full_1(uint8_t* rdram, recomp_context* ctx); sp_deferred_full_1(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevel"
+before_vram = 0x00202244
+text = "{ extern void sp_deferred_full_2(uint8_t* rdram, recomp_context* ctx); sp_deferred_full_2(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x00202664
+text = "{ extern void sp_deferred_full_3(uint8_t* rdram, recomp_context* ctx); sp_deferred_full_3(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x002027D0
+text = "{ extern void sp_deferred_full_4(uint8_t* rdram, recomp_context* ctx); sp_deferred_full_4(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_00203890"
+before_vram = 0x00203964
+text = "{ extern void sp_deferred_full_5(uint8_t* rdram, recomp_context* ctx); sp_deferred_full_5(rdram, ctx); }"
+
+# Sky layers drawn with the original far clip's frustum corners (src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "CEmitter__DrawLayer"
+before_vram = 0x00281D50
+text = "{ extern int sp_draw_sky_layer(uint8_t* rdram, recomp_context* ctx); if (sp_draw_sky_layer(rdram, ctx)) return; }"
+
+# F9 in the game writes one frame's culling decisions to debug_capture.txt (src/game/debug_capture.cpp).
+[[patches.hook]]
+func = "CScene__DrawLevel"
+before_vram = 0x00201F78
+text = "{ extern void sp_capture_level_start(uint8_t* rdram, recomp_context* ctx); sp_capture_level_start(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevel"
+before_vram = 0x00202010
+text = "{ extern void sp_capture_section(uint8_t* rdram, recomp_context* ctx); sp_capture_section(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevel"
+before_vram = 0x002020F4
+text = "{ extern void sp_capture_static(uint8_t* rdram, recomp_context* ctx); sp_capture_static(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevel"
+before_vram = 0x00202228
+text = "{ extern void sp_capture_actor(uint8_t* rdram, recomp_context* ctx); sp_capture_actor(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_00227738"
+before_vram = 0x0022777C
+text = "{ extern void sp_capture_static_model(uint8_t* rdram, recomp_context* ctx); sp_capture_static_model(rdram, ctx); }"
+
+[[patches.hook]]
+func = "func_00227738"
+before_vram = 0x002277E4
+text = "{ extern void sp_capture_static_unpacked(uint8_t* rdram, recomp_context* ctx); sp_capture_static_unpacked(rdram, ctx); }"
+
+# F9 capture, single-camera level draw (src/game/debug_capture.cpp).
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x002024F4
+text = "{ extern void sp_capture_views_start(uint8_t* rdram, recomp_context* ctx); sp_capture_views_start(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x00202508
+text = "{ extern void sp_capture_views_section(uint8_t* rdram, recomp_context* ctx); sp_capture_views_section(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x002025C4
+text = "{ extern void sp_capture_views_static(uint8_t* rdram, recomp_context* ctx); sp_capture_views_static(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x002026BC
+text = "{ extern void sp_capture_views_actor(uint8_t* rdram, recomp_context* ctx); sp_capture_views_actor(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x00202680
+text = "{ extern void sp_capture_views_static_drawn(uint8_t* rdram, recomp_context* ctx); sp_capture_views_static_drawn(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x0020265C
+text = "{ extern void sp_capture_views_static_held(uint8_t* rdram, recomp_context* ctx); sp_capture_views_static_held(rdram, ctx); }"
+
+[[patches.hook]]
+func = "CScene__DrawLevelViews"
+before_vram = 0x002027EC
+text = "{ extern void sp_capture_views_actor_drawn(uint8_t* rdram, recomp_context* ctx); sp_capture_views_actor_drawn(rdram, ctx); }"

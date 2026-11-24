@@ -1,0 +1,7 @@
+# Function boundaries fixed by hand for South Park (USA): <vram> <size> <name>  # evidence
+# Each entry replaces whatever tools/find_functions.py found inside that range.
+
+# Hand-written RNC unpacker. RNC_UnpackMethod2 (0x0027D748) saves registers and calls this
+# through a pointer built at 0x0027D794. It starts in the delay slot of the wrapper's
+# final `jr ra`, so the two functions share the instruction at 0x0027D7F0.
+0x0027D7F0 0x640 RNC_UnpackMethod2_body

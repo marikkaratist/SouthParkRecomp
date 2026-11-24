@@ -1,0 +1,25 @@
+diff --git a/ultramodern/src/events.cpp b/ultramodern/src/events.cpp
+index 090cc42..1aa2328 100644
+--- a/ultramodern/src/events.cpp
++++ b/ultramodern/src/events.cpp
+@@ -363,7 +363,11 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
+                 // start another graphics task until the RDP is also complete. Games usually preserve the RSP inputs until the RDP
+                 // is finished as well, so sending this early shouldn't be an issue in most cases.
+                 // If this causes issues then the logic can be replaced with responding to yield requests.
+-                sp_complete();
++                //
++                // South Park: it does cause issues. This engine reuses its display list and dynamic buffers as soon as
++                // the RSP reports the task done, so the renderer was reading memory that was being rewritten (garbage
++                // geometry, flicker, display lists that never end). On the console the RSP interrupt comes after the
++                // whole list has been read, so report it only once the renderer has processed the list.
+                 ultramodern::measure_input_latency();
+ 
+                 PTR(u64) displaylist = task_action->task.t.data_ptr;
+@@ -373,6 +377,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
+                 renderer_context->send_dl(&task_action->task);
+                 [[maybe_unused]] auto renderer_end = std::chrono::high_resolution_clock::now();
+ 
++                sp_complete();
+                 dp_complete();
+                 // TODO hook the parsed event up to the actual parsing point when a callback is added to RT64.
+                 ultramodern::extensions::on_displaylist_parsed(displaylist);
