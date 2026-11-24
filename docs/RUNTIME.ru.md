@@ -200,6 +200,7 @@ git -C lib/rt64 apply ../../runtime-patches/0002-rt64-acclaim-f3dex2-as-f3dex2.p
 git -C lib/rt64 apply ../../runtime-patches/0003-rt64-msaa-resolve-without-color-target.patch
 git -C lib/N64ModernRuntime apply ../../runtime-patches/0004-n64modernruntime-rsp-done-after-display-list.patch
 git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch
+git -C lib/RecompFrontend apply ../../runtime-patches/0006-recompfrontend-dump-textures-env.patch
 ```
 
 Первый и третий — исправления ошибок, которые стоит предложить авторам этих библиотек. Пятый не
@@ -534,3 +535,30 @@ w / k: туман выглядит как раньше, только в k раз
 поэтому на пределе счётчик перескакивает на единицу вперёд. Проверка с заниженными пределами:
 SP_MATERIAL_LIMIT=30 SP_ITEM_LIMIT=100, кадр полный. С --trace-input раз в секунду выводится
 «materials in a frame» / «draw items in a frame», если предел игры превышен.
+
+## Текстурные паки (2026-11-25)
+
+`--dump-textures <папка>` выставляет `RT64_DUMP_TEXTURES`; рендерер читает её при старте
+(`runtime-patches/0006`) и включает дамп текстур RT64, как кнопка «Dump textures» в инспекторе: для
+каждой текстуры один раз весь TMEM (`<хеш>.v<версия>.tmem`), параметры тайла (`.tile.json`) и
+RDRAM, откуда она пришла (`.rice.*`, для хешей Rice).
+
+`tools/make_texture_pack.py` делает из этого пак:
+- **decode**: читает дамп TMEM в точности как `sampleTMEM` в RT64 (`shaders/TextureDecoder.hlsli`):
+  адрес тексела `y * line*8 + (x << shift) / 2` от `tmem*8`; в нечётных строках 32-битные слова
+  переставлены парами; RGBA32 берёт R,G из нижней половины TMEM, B,A из верхней; с палитрой индекс
+  читает 16-битную запись RGBA16 или IA16 по `0x800 + индекс*8` (CI4: `+ palette*128`). TMEM хранится
+  в порядке байтов N64. Проверка: на 644 текстурах среднее изменение между строками одинаково для
+  чётных и нечётных строк (7.0 и 6.8), неверная перестановка строк это бы нарушила.
+- **upscale**: Real-ESRGAN ncnn-vulkan, по умолчанию `realesrgan-x4plus-anime` x4. Каждая текстура
+  дополняется на 8 текселов так, как игра её читает (`cms`/`cmt`: повтор, зеркало или край при clamp
+  и без маски), цвет под полностью прозрачными текселами заполняется от соседей, альфа проходит через
+  апскейлер отдельной серой картинкой; альфа, которая была только 0/255, снова приводится к 0/255.
+- **pack**: `rt64.json` с `autoPath: rt64`, текстуры сопоставлены по хешу RT64 (хеши Rice не нужны),
+  `mod.json` с `game_id: southpark`, затем `texture_packer --create-low-mip-cache` и `--create-pack`
+  (упаковщик требует кэш и пишет `<папка>.rtz` внутрь самой папки).
+
+Замер: минута от запуска до первого уровня даёт 710 текстур (форматы: RGBA16, CI4 с палитрами RGBA16
+и IA16, CI8, I4, I8); апскейл 644 из них (меньше 8 текселов не трогаются) — 38 с; пак 17 МБ. В игре
+журнал пишет «Loading mod southpark_hd_textures», уровень рисуется с заменёнными текстурами, без
+пропаж и мусора.

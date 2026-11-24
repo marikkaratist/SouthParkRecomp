@@ -193,6 +193,15 @@ void southpark::dev::parse_args(int argc, char** argv) {
         else if (std::strcmp(argv[i], "--memory") == 0 && i + 1 < argc) {
             forced_memory = std::atoi(argv[++i]);
         }
+        else if (std::strcmp(argv[i], "--dump-textures") == 0 && i + 1 < argc) {
+            // Read by the renderer when it starts (runtime-patches/0006): every texture the game
+            // uses is dumped once into this folder, for tools/make_texture_pack.py.
+#ifdef _WIN32
+            _putenv_s("RT64_DUMP_TEXTURES", argv[++i]);
+#else
+            setenv("RT64_DUMP_TEXTURES", argv[++i], 1);
+#endif
+        }
         else if (std::strcmp(argv[i], "--draw-distance") == 0 && i + 1 < argc) {
             forced_distance = static_cast<float>(std::atof(argv[++i]));
         }

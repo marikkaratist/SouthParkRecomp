@@ -1,0 +1,30 @@
+diff --git a/recompui/src/renderer/rt64_render_context.cpp b/recompui/src/renderer/rt64_render_context.cpp
+index a7954c7..c1871e2 100644
+--- a/recompui/src/renderer/rt64_render_context.cpp
++++ b/recompui/src/renderer/rt64_render_context.cpp
+@@ -1,5 +1,8 @@
+ #include <memory>
++#include <cstdio>
++#include <cstdlib>
+ #include <cstring>
++#include <filesystem>
+ #include <variant>
+ #include <algorithm>
+ 
+@@ -316,6 +319,16 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+     // Set the application's fullscreen state.
+     app->setFullScreen(cur_config.wm_option == ultramodern::renderer::WindowMode::Fullscreen);
+ 
++    // Texture dumping for making texture packs, without going through the inspector: every texture
++    // the game uses is written once to this folder (as the inspector's "Dump textures" does).
++    if (const char* dump_dir = std::getenv("RT64_DUMP_TEXTURES"); dump_dir != nullptr && dump_dir[0] != '\0') {
++        std::filesystem::path dump_path = std::filesystem::u8path(dump_dir);
++        std::error_code ec;
++        std::filesystem::create_directories(dump_path, ec);
++        app->state->dumpingTexturesDirectory = dump_path;
++        fprintf(stderr, "RT64: dumping textures to %s\n", dump_dir);
++    }
++
+     // Check if the selected device actually supports MSAA sample positions and MSAA for for the formats that will be used
+     // and downgrade the configuration accordingly.
+     if (app->device->getCapabilities().sampleLocations) {

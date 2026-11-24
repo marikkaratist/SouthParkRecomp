@@ -59,6 +59,27 @@ ROM в репозиторий не входит и никогда не буде�
 python tools/rom_prepare.py "<путь к дампу>" rom/southpark.us.z64
 ```
 
+## HD-текстуры (свой пак)
+
+Текстурные паки — это моды `.rtz`, как HD-паки для Zelda 64: Recompiled или Banjo: Recompiled.
+`tools/make_texture_pack.py` собирает такой пак из вашей копии игры с помощью апскейлера Real-ESRGAN
+([realesrgan-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN/releases)):
+
+1. Играйте со включённым дампом; каждая показанная текстура сохраняется один раз:
+   ```
+   SouthParkRecompiled.exe --dump-textures C:\sp\dump
+   ```
+2. Декодирование, апскейл в 4 раза и упаковка (Python с numpy и Pillow):
+   ```
+   python tools/make_texture_pack.py all C:\sp\dump C:\sp\work --esrgan <путь к realesrgan-ncnn-vulkan.exe> --packer build\texture_packer.exe
+   ```
+3. Скопируйте `C:\sp\work\southpark_hd.rtz` в `%LOCALAPPDATA%\SouthParkRecompiled\mods` и включите его в разделе Mods.
+
+Текстуры сопоставляются по хешу RT64, поэтому перед сборкой пройдите все места, которые хотите
+охватить; всё, что не попало в дамп, останется оригинальным. Бесшовные текстуры остаются
+бесшовными, у прозрачных краёв нет ореола. Пак делается из вашей копии игры — держите его для
+себя.
+
 ## Структура
 
 - `src/`, `include/`, `assets/`, `icons/` — приложение: лаунчер, настройки, игровая часть (`src/game/`)
@@ -98,7 +119,7 @@ python tools/rom_prepare.py "<путь к дампу>" rom/southpark.us.z64
 ```
 git -C lib/N64ModernRuntime apply ../../runtime-patches/0001-n64modernruntime-fix-thread-queue-remove.patch ../../runtime-patches/0004-n64modernruntime-rsp-done-after-display-list.patch
 git -C lib/rt64 apply ../../runtime-patches/0002-rt64-acclaim-f3dex2-as-f3dex2.patch ../../runtime-patches/0003-rt64-msaa-resolve-without-color-target.patch
-git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch
+git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch ../../runtime-patches/0006-recompfrontend-dump-textures-env.patch
 ```
 
 ## Этапы

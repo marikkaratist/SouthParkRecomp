@@ -59,6 +59,27 @@ Preparing the ROM from any format (.z64 / .v64 / .n64); the original file is lef
 python tools/rom_prepare.py "<path to dump>" rom/southpark.us.z64
 ```
 
+## HD textures (make your own pack)
+
+Texture packs are `.rtz` mods, like the HD packs for Zelda 64: Recompiled or Banjo: Recompiled.
+`tools/make_texture_pack.py` builds one from your own copy of the game with the Real-ESRGAN upscaler
+([realesrgan-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN/releases)):
+
+1. Play with texture dumping on; every texture the game shows is saved once:
+   ```
+   SouthParkRecompiled.exe --dump-textures C:\sp\dump
+   ```
+2. Decode, upscale 4x and pack (Python with numpy and Pillow):
+   ```
+   python tools/make_texture_pack.py all C:\sp\dump C:\sp\work --esrgan <path to realesrgan-ncnn-vulkan.exe> --packer build\texture_packer.exe
+   ```
+3. Copy `C:\sp\work\southpark_hd.rtz` to `%LOCALAPPDATA%\SouthParkRecompiled\mods` and enable it under Mods.
+
+Textures are matched by their RT64 hash, so play through every place you want covered before
+building; anything not dumped keeps its original look. Tiling textures stay seamless and
+transparent edges get no halo. The pack is made from your own copy of the game: keep it for
+your own use.
+
 ## Repository layout
 
 - `src/`, `include/`, `assets/`, `icons/` — the application: launcher, settings, game code (`src/game/`)
@@ -98,7 +119,7 @@ Submodules: `git submodule update --init --recursive`, then apply the changes fr
 ```
 git -C lib/N64ModernRuntime apply ../../runtime-patches/0001-n64modernruntime-fix-thread-queue-remove.patch ../../runtime-patches/0004-n64modernruntime-rsp-done-after-display-list.patch
 git -C lib/rt64 apply ../../runtime-patches/0002-rt64-acclaim-f3dex2-as-f3dex2.patch ../../runtime-patches/0003-rt64-msaa-resolve-without-color-target.patch
-git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch
+git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch ../../runtime-patches/0006-recompfrontend-dump-textures-env.patch
 ```
 
 ## Milestones

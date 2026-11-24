@@ -201,6 +201,7 @@ git -C lib/rt64 apply ../../runtime-patches/0002-rt64-acclaim-f3dex2-as-f3dex2.p
 git -C lib/rt64 apply ../../runtime-patches/0003-rt64-msaa-resolve-without-color-target.patch
 git -C lib/N64ModernRuntime apply ../../runtime-patches/0004-n64modernruntime-rsp-done-after-display-list.patch
 git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch
+git -C lib/RecompFrontend apply ../../runtime-patches/0006-recompfrontend-dump-textures-env.patch
 ```
 
 The first and third are bug fixes worth offering upstream. The fifth stops mouse motion from
@@ -545,3 +546,30 @@ drawn. Only the CPU reads these nodes, so beyond the limit they are taken from m
 so at the limit the counter jumps one ahead. Check with lowered limits:
 SP_MATERIAL_LIMIT=30 SP_ITEM_LIMIT=100, the frame is complete. With --trace-input, once a second
 "materials in a frame" / "draw items in a frame" is printed if the game's limit is exceeded.
+
+## Texture packs (2026-11-25)
+
+`--dump-textures <folder>` sets `RT64_DUMP_TEXTURES`, which the renderer reads when it starts
+(`runtime-patches/0006`) and turns on RT64's texture dump, as the inspector's "Dump textures" does:
+for every texture, once, the whole TMEM (`<hash>.v<version>.tmem`), the tile parameters
+(`.tile.json`) and the RDRAM it came from (`.rice.*`, for Rice hashes).
+
+`tools/make_texture_pack.py` turns that into a pack:
+- **decode**: samples the TMEM dump exactly like RT64's `sampleTMEM` (`shaders/TextureDecoder.hlsli`):
+  texel address `y * line*8 + (x << shift) / 2` from `tmem*8`; on odd rows the 32-bit words of a row
+  are swapped in pairs; RGBA32 takes R,G from the lower and B,A from the upper TMEM half; with a TLUT
+  the index reads a 16-bit RGBA16 or IA16 entry from `0x800 + index*8` (CI4: `+ palette*128`). TMEM is
+  stored in N64 byte order. Check: on 644 textures the mean change between rows is the same for
+  even and odd rows (7.0 and 6.8), which a wrong row swap would break.
+- **upscale**: Real-ESRGAN ncnn-vulkan, `realesrgan-x4plus-anime` x4 by default. Each texture is padded
+  by 8 texels as the game samples it (`cms`/`cmt`: wrap, mirror, or clamp when clamped or unmasked),
+  colour under fully transparent texels is bled in from the neighbours, and alpha goes through the
+  upscaler as a separate grey image; alpha that was only 0/255 is thresholded back to 0/255.
+- **pack**: `rt64.json` with `autoPath: rt64` and each texture matched by its RT64 hash (no Rice hashes
+  needed), `mod.json` with `game_id: southpark`, then `texture_packer --create-low-mip-cache` and
+  `--create-pack` (the packer insists on the cache and writes `<folder>.rtz` inside the folder).
+
+Measured: one minute from boot to the first level dumps 710 textures (formats: RGBA16, CI4 with RGBA16
+or IA16 palettes, CI8, I4, I8); upscaling 644 of them (smaller than 8 texels are left alone) takes
+38 s; the pack is 17 MB. In game the log shows "Loading mod southpark_hd_textures" and the level draws
+with the replaced textures, nothing missing or scrambled.
