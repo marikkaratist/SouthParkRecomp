@@ -10,7 +10,8 @@ param(
     [string]$BuildDir = "build",
     [string]$Name = "shot",
     [int]$Burst = 1,              # shots taken in quick succession at each time
-    [string[]]$GameArgs = @()     # extra switches for the game, e.g. --no-hints
+    [string[]]$GameArgs = @(),    # extra switches for the game, e.g. --no-hints
+    [switch]$Launcher             # stay in the launcher instead of starting the game
 )
 $root = Split-Path $PSScriptRoot -Parent
 $log = Join-Path $root "rom\run.log"
@@ -38,7 +39,9 @@ public static class SpWindow {
 "@ -ReferencedAssemblies System.Drawing
 
 [SpWindow]::SetProcessDPIAware() | Out-Null
-$arguments = @("--rom", "`"$root\rom\southpark.us.z64`"", "--autostart", "--log", "`"$log`"") + $GameArgs
+$arguments = @("--rom", "`"$root\rom\southpark.us.z64`"")
+if (-not $Launcher) { $arguments += "--autostart" }
+$arguments += @("--log", "`"$log`"") + $GameArgs
 $process = Start-Process -FilePath "$root\$BuildDir\SouthParkRecompiled.exe" -ArgumentList $arguments -WorkingDirectory $root -PassThru
 $started = Get-Date
 foreach ($second in ($At | Sort-Object)) {

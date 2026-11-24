@@ -59,7 +59,7 @@
 
 #include "../../lib/rt64/src/contrib/stb/stb_image.h"
 
-const std::string version_string = "0.1.0";
+const std::string version_string = "0.1.1";
 
 template<typename... Ts>
 void exit_error(const char* str, Ts ...args) {
@@ -101,57 +101,26 @@ ultramodern::input::connected_device_info_t get_connected_device_info(int contro
     };
 }
 
-// TODO icon
-// #include "icon_bytes.h"
+#include "icon_bytes.h"
 
-#if defined(__gnu_linux__)
-bool SetImageAsIcon(const char* filename, SDL_Window* window)
+// Window icon from icons/app.png (the executable itself carries icons/app.ico).
+bool SetImageAsIcon(SDL_Window* window)
 {
+    int width, height, bytesPerPixel;
+    void* data = stbi_load_from_memory(reinterpret_cast<const uint8_t*>(icon_bytes), sizeof(icon_bytes), &width, &height, &bytesPerPixel, 4);
+    if (data == nullptr) {
+        return false;
+    }
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(data, width, height, 32, width * 4, SDL_PIXELFORMAT_RGBA32);
+    if (surface == nullptr) {
+        stbi_image_free(data);
+        return false;
+    }
+    SDL_SetWindowIcon(window, surface);
+    SDL_FreeSurface(surface);
+    stbi_image_free(data);
     return true;
-// TODO icon
-//     // Read data
-//     int width, height, bytesPerPixel;
-//     void* data = stbi_load_from_memory(reinterpret_cast<const uint8_t*>(icon_bytes), sizeof(icon_bytes), &width, &height, &bytesPerPixel, 4);
-
-//     // Calculate pitch
-//     int pitch;
-//     pitch = width * 4;
-//     pitch = (pitch + 3) & ~3;
-
-//     // Setup relevance bitmask
-//     int Rmask, Gmask, Bmask, Amask;
-
-// #if SDL_BYTEORDER == SDL_LIL_ENDIAN
-//     Rmask = 0x000000FF;
-//     Gmask = 0x0000FF00;
-//     Bmask = 0x00FF0000;
-//     Amask = 0xFF000000;
-// #else
-//     Rmask = 0xFF000000;
-//     Gmask = 0x00FF0000;
-//     Bmask = 0x0000FF00;
-//     Amask = 0x000000FF;
-// #endif
-
-//     SDL_Surface* surface = nullptr;
-//     if (data != nullptr) {
-//         surface = SDL_CreateRGBSurfaceFrom(data, width, height, 32, pitch, Rmask, Gmask,
-//                             Bmask, Amask);
-//     }
-
-//     if (surface == nullptr) {   
-//         if (data != nullptr) {
-//             stbi_image_free(data);
-//         }
-//         return false;
-// 	} else {
-//         SDL_SetWindowIcon(window,surface);
-//         SDL_FreeSurface(surface);
-//         stbi_image_free(data);
-//         return true;
-//     }
 }
-#endif
 
 SDL_Window* window;
 
@@ -174,10 +143,7 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
     SDL_VERSION(&wmInfo.version);
     SDL_GetWindowWMInfo(window, &wmInfo);
 
-#if defined(__linux__)
-    // TODO icon
-    // SetImageAsIcon("icons/app.png", window);
-#endif
+    SetImageAsIcon(window);
 
 #if defined(_WIN32)
     return ultramodern::renderer::WindowHandle{ wmInfo.info.win.window, GetCurrentThreadId() };
@@ -379,8 +345,7 @@ std::vector<recomp::GameEntry> supported_games = {
         .mod_game_id = "southpark",
         // The game saves to a Controller Pak, which is not a cartridge save type.
         .save_type = recomp::SaveType::None,
-        // TODO icon
-        // .thumbnail_bytes = std::span<const char>(icon_bytes),
+        .thumbnail_bytes = std::span<const char>(icon_bytes),
         .is_enabled = true,
         .decompression_routine = nullptr,
         .has_compressed_code = false,
@@ -595,11 +560,11 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
         supported_games[0].mod_game_id,
         supported_games[0].display_name,
         supported_games[0].thumbnail_bytes,
-        recompui::GameOptionsMenuLayout::Center
+        recompui::GameOptionsMenuLayout::Right
     );
     game_options_menu->add_default_options();
 
-    recompui::Element *menu_container = menu->get_menu_container();
+    // Moves the menu onto its sign and draws the scenery (launcher_animation.cpp).
     southpark::launcher_animation_setup(menu);
 }
 

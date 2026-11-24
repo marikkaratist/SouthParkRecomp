@@ -1,0 +1,52 @@
+diff --git a/recompui/src/base/ui_state.cpp b/recompui/src/base/ui_state.cpp
+index 277a421..c559ed4 100644
+--- a/recompui/src/base/ui_state.cpp
++++ b/recompui/src/base/ui_state.cpp
+@@ -293,6 +293,9 @@ public:
+             if (mouse_is_active) {
+                 mouse_is_active = false;
+                 mouse_is_active_changed = true;
++                // The cursor gets hidden; drop the hover it leaves behind so only the
++                // focused element stays highlighted.
++                context->ProcessMouseLeave();
+             }
+         }
+         else if (mouse_moved) {
+@@ -696,6 +699,9 @@ void draw_hook(plume::RenderCommandList* command_list, plume::RenderFramebuffer*
+ 
+         if (!all_input_is_disabled) {
+             bool is_mouse_input = false;
++            // Mouse motion that must not reach RmlUi: it would move the hover state while
++            // the controller or keyboard owns the focus, and the two would fight over the menu.
++            bool drop_event = false;
+             // Implement some additional behavior for specific events on top of what RmlUi normally does with them.
+             switch (cur_event.type) {
+             case SDL_EventType::SDL_MOUSEMOTION: {
+@@ -705,6 +711,7 @@ void draw_hook(plume::RenderCommandList* command_list, plume::RenderFramebuffer*
+                     float xD = cur_event.motion.x - last_mouse_pos[0];
+                     float yD = cur_event.motion.y - last_mouse_pos[1];
+                     if (sqrt(xD * xD + yD * yD) < 100) {
++                        drop_event = true;
+                         break;
+                     }
+                 }
+@@ -713,6 +720,7 @@ void draw_hook(plume::RenderCommandList* command_list, plume::RenderFramebuffer*
+ 
+                 // if controller is the primary input, don't use mouse movement to allow cursor to reactivate
+                 if (recompui::get_cont_active()) {
++                    drop_event = true;
+                     break;
+                 }
+             }
+@@ -796,7 +804,10 @@ void draw_hook(plume::RenderCommandList* command_list, plume::RenderFramebuffer*
+             }
+ 
+             // Send the event to RmlUi if this type of event is being captured.
+-            if (is_mouse_input) {
++            if (drop_event) {
++                // Neither mouse nor other input: ignored entirely.
++            }
++            else if (is_mouse_input) {
+                 if (context_capturing_mouse) {
+                     RmlSDL::InputEventHandler(ui_state->context, cur_event);
+                 }

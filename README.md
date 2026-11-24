@@ -27,7 +27,7 @@ python tools/rom_prepare.py "<путь к дампу>" rom/southpark.us.z64
 
 ## Установка (готовая сборка)
 
-1. Скачайте `SouthParkRecompiled-v0.1.0-windows-x64.zip` со страницы [Releases](../../releases) и распакуйте в любую папку.
+1. Скачайте `SouthParkRecompiled-v0.1.1-windows-x64.zip` со страницы [Releases](../../releases) и распакуйте в любую папку.
 2. Запустите `SouthParkRecompiled.exe`.
 3. В лаунчере укажите свой дамп South Park (USA) — `.z64`; если дамп в `.v64`/`.n64`, сначала преобразуйте его через `tools/rom_prepare.py`. ROM проверяется по хешу (SHA1 выше).
 
@@ -40,7 +40,7 @@ python tools/rom_prepare.py "<путь к дампу>" rom/southpark.us.z64
 - `symbols/` — файл символов для N64Recomp и имена функций
 - `southpark.us.toml`, `aspMain.us.toml`, `patches.toml` — конфиги рекомпиляторов
 - `n64recomp-patches/` — правки N64Recomp, без которых ROM не проходит
-- `runtime-patches/` — правки N64ModernRuntime и rt64, применённые к подмодулям
+- `runtime-patches/` — правки N64ModernRuntime, rt64 и RecompFrontend, применённые к подмодулям
 - `tools/` — скрипты анализа ROM
 - `docs/` — карта памяти, символы, устройство рантайма
 - `lib/` — подмодули: N64ModernRuntime, rt64, RecompFrontend
@@ -70,6 +70,7 @@ python tools/rom_prepare.py "<путь к дампу>" rom/southpark.us.z64
 ```
 git -C lib/N64ModernRuntime apply ../../runtime-patches/0001-n64modernruntime-fix-thread-queue-remove.patch ../../runtime-patches/0004-n64modernruntime-rsp-done-after-display-list.patch
 git -C lib/rt64 apply ../../runtime-patches/0002-rt64-acclaim-f3dex2-as-f3dex2.patch ../../runtime-patches/0003-rt64-msaa-resolve-without-color-target.patch
+git -C lib/RecompFrontend apply ../../runtime-patches/0005-recompfrontend-mouse-controller-focus-race.patch
 ```
 
 ## Лицензия

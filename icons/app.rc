@@ -1,0 +1,2 @@
+// Executable icon shown by Explorer, shortcuts and the taskbar (made by tools/make_icon.py).
+1 ICON "app.ico"
