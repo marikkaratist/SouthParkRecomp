@@ -192,6 +192,35 @@ def bleed_colour(rgba):
     return rgb.clip(0, 255).astype(np.uint8)
 
 
+def to_ycc(rgb):
+    rgb = rgb.astype(np.float32)
+    y = rgb @ np.array([0.299, 0.587, 0.114], np.float32)
+    return y, (rgb[..., 2] - y) * 0.564, (rgb[..., 0] - y) * 0.713
+
+
+def from_ycc(y, cb, cr):
+    r = y + cr / 0.713
+    b = y + cb / 0.564
+    g = (y - 0.299 * r - 0.114 * b) / 0.587
+    return np.stack([r, g, b], -1).clip(0, 255).round().astype(np.uint8)
+
+
+def resize_f(a, size, resample):
+    return np.array(Image.fromarray(a.astype(np.float32), "F").resize(size, resample))
+
+
+def fix_colour(rgb, reference):
+    """Gives the upscaled colour the chroma of the original at the original's resolution, keeping
+    the upscaled brightness detail: the model tints faint details (a light grey pupil turned red)
+    and adds colour fringes, while the original's colours are what the game was drawn with."""
+    y, cb, cr = to_ycc(rgb)
+    _, ref_cb, ref_cr = to_ycc(reference)
+    size, small = (rgb.shape[1], rgb.shape[0]), (reference.shape[1], reference.shape[0])
+    cb = cb + resize_f(ref_cb - resize_f(cb, small, Image.BOX), size, Image.BILINEAR)
+    cr = cr + resize_f(ref_cr - resize_f(cr, small, Image.BOX), size, Image.BILINEAR)
+    return from_ycc(y, cb, cr)
+
+
 def run_esrgan(esrgan, model, scale, src, dst):
     dst.mkdir(parents=True, exist_ok=True)
     cmd = [str(esrgan), "-i", str(src), "-o", str(dst), "-n", model, "-s", str(scale),
@@ -200,21 +229,23 @@ def run_esrgan(esrgan, model, scale, src, dst):
     subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
 
 
-def cmd_upscale(work, esrgan, model, scale, min_size, prescale_max):
+def cmd_upscale(work, esrgan, model, scale, min_size, prescale_max, skip_sparse):
     index = json.loads((work / "textures.json").read_text())
     stage_rgb, stage_a = work / "stage_rgb", work / "stage_alpha"
     out_rgb, out_a, hd = work / "up_rgb", work / "up_alpha", work / "hd"
-    for d in (stage_rgb, stage_a, out_rgb, out_a):
+    for d in (stage_rgb, stage_a, out_rgb, out_a, hd):
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True)
-    hd.mkdir(exist_ok=True)
 
-    alpha_kind, prescaled = {}, set()
+    alpha_kind, prescaled, sparse = {}, set(), 0
     for h, meta in index.items():
         rgba = np.array(Image.open(work / "native" / f"{h}.png").convert("RGBA"))
         if min(rgba.shape[:2]) < min_size:
             continue
         a = rgba[..., 3]
+        if min(rgba.shape[:2]) >= 32 and (a > 0).mean() < skip_sparse:
+            sparse += 1  # a few dots on a transparent field: the radar, redrawn every frame
+            continue
         alpha_kind[h] = "opaque" if (a == 255).all() else ("binary" if np.isin(a, (0, 255)).all() else "soft")
         rgb = bleed_colour(rgba)
         for axis, clamp, mirror in ((1, meta["clamp_s"], meta["mirror_s"]), (0, meta["clamp_t"], meta["mirror_t"])):
@@ -242,6 +273,7 @@ def cmd_upscale(work, esrgan, model, scale, min_size, prescale_max):
             im = im.crop((crop, crop, im.width - crop, im.height - crop))
             return np.array(im if im.size == size else im.resize(size, Image.LANCZOS))
 
+        native = np.array(Image.open(work / "native" / f"{h}.png").convert("RGBA"))
         rgb = load(out_rgb, "RGB")
         if kind == "opaque":
             a = np.full(rgb.shape[:2], 255, np.uint8)
@@ -249,9 +281,20 @@ def cmd_upscale(work, esrgan, model, scale, min_size, prescale_max):
             a = load(out_a, "L")
             if kind == "binary":
                 a = np.where(a >= 128, 255, 0).astype(np.uint8)
+            # The model draws dark outlines where the colour meets the bled-in background; along a
+            # transparent edge they show as a dark fringe (under letters, for one). Take the edge
+            # colour from the solid inside instead.
+            solid = a >= 240
+            if solid.any():
+                rgb = bleed_colour(np.dstack([rgb, np.where(solid, 255, 0).astype(np.uint8)]))
+        rgb = fix_colour(rgb, bleed_colour(native))
+        seen = native[..., 3] > 0
+        if seen.any() and (native[..., 0] == native[..., 1])[seen].all() and (native[..., 1] == native[..., 2])[seen].all():
+            y = to_ycc(rgb)[0].clip(0, 255).round().astype(np.uint8)  # grey (I, IA) stays grey
+            rgb = np.stack([y, y, y], -1)
         Image.fromarray(np.dstack([rgb, a]), "RGBA").save(hd / f"{h}.png")
     print(f"upscaled {len(alpha_kind)} textures x{scale} into {hd} "
-          f"({len(prescaled)} small ones doubled first)")
+          f"({len(prescaled)} small ones doubled first, {sparse} sparse ones left alone)")
 
 
 # --- pack ---------------------------------------------------------------------------------------
@@ -318,6 +361,9 @@ def main():
     ap.add_argument("--prescale-max", type=int, default=32,
                     help="double textures up to this size with nearest-neighbour before the model "
                          "so one-texel details survive (0: never)")
+    ap.add_argument("--skip-sparse", type=float, default=0.05,
+                    help="leave textures of 32 texels or more alone when less than this share of them "
+                         "is visible (the radar, redrawn every frame, would add thousands)")
     ap.add_argument("--esrgan", type=Path, default=DEFAULT_ESRGAN)
     ap.add_argument("--packer", type=Path, default=DEFAULT_PACKER)
     ap.add_argument("--name", default="southpark_hd")
@@ -328,7 +374,7 @@ def main():
             sys.exit("decode needs the dump folder")
         cmd_decode(a.dump, a.work)
     if a.step in ("upscale", "all"):
-        cmd_upscale(a.work, a.esrgan, a.model, a.scale, a.min_size, a.prescale_max)
+        cmd_upscale(a.work, a.esrgan, a.model, a.scale, a.min_size, a.prescale_max, a.skip_sparse)
     if a.step in ("pack", "all"):
         cmd_pack(a.work, a.packer, a.name)
 

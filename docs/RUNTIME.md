@@ -572,6 +572,15 @@ for every texture, once, the whole TMEM (`<hash>.v<version>.tmem`), the tile par
   pupils in the 32x32 character portraits are one light grey texel and vanished), a 2x2 block survives.
   On the 644-texture dump that is 362 textures; larger ones such as the 64-texel eye textures keep
   their pupils either way. Prescaling x3 or x4 turns the portrait blocky.
+- **after the model**: along transparent edges the colour is taken from the solid inside (the model
+  draws dark outlines against the bled-in background, which showed as a dark fringe under letters);
+  the chroma is corrected to the original's at the original resolution while the upscaled brightness
+  is kept (faint details came out tinted: the light grey pupils in the portraits turned red); textures
+  that are grey in the original (I, IA) stay grey.
+- **skipped**: textures of 32 texels or more with under 5% of their texels visible (`--skip-sparse`).
+  These are the radar, which the game redraws every frame: a full playthrough dumped 9760 frames of
+  it, each with its own hash, so a replacement would almost never match again and the pack grew to
+  334 MB. Its dots stay as the game draws them.
 - **overrides**: `work/overrides/<hash>.png`, any size, replaces the upscaled texture in the pack.
 - **pack**: `rt64.json` with `autoPath: rt64` and each texture matched by its RT64 hash (no Rice hashes
   needed), `mod.json` with `game_id: southpark`, then `texture_packer --create-low-mip-cache` and
