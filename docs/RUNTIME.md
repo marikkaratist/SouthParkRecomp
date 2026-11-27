@@ -567,6 +567,12 @@ for every texture, once, the whole TMEM (`<hash>.v<version>.tmem`), the tile par
   by 8 texels as the game samples it (`cms`/`cmt`: wrap, mirror, or clamp when clamped or unmasked),
   colour under fully transparent texels is bled in from the neighbours, and alpha goes through the
   upscaler as a separate grey image; alpha that was only 0/255 is thresholded back to 0/255.
+  Textures up to `--prescale-max` (32) on both sides are doubled with nearest-neighbour first and the
+  result is resized back down to x4 (Lanczos): the anime model treats a one-texel detail as noise (the
+  pupils in the 32x32 character portraits are one light grey texel and vanished), a 2x2 block survives.
+  On the 644-texture dump that is 362 textures; larger ones such as the 64-texel eye textures keep
+  their pupils either way. Prescaling x3 or x4 turns the portrait blocky.
+- **overrides**: `work/overrides/<hash>.png`, any size, replaces the upscaled texture in the pack.
 - **pack**: `rt64.json` with `autoPath: rt64` and each texture matched by its RT64 hash (no Rice hashes
   needed), `mod.json` with `game_id: southpark`, then `texture_packer --create-low-mip-cache` and
   `--create-pack` (the packer insists on the cache and writes `<folder>.rtz` inside the folder).

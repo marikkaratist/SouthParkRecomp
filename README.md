@@ -80,8 +80,11 @@ Texture packs are `.rtz` mods, like the HD packs for Zelda 64: Recompiled or Ban
 
 Textures are matched by their RT64 hash, so play through every place you want covered before
 building; anything not dumped keeps its original look. Tiling textures stay seamless and
-transparent edges get no halo. The pack is made from your own copy of the game: keep it for
-your own use.
+transparent edges get no halo. Small textures (32 texels or less) are doubled with
+nearest-neighbour before the upscaler so one-texel details such as pupils in the portraits survive.
+To fix a texture by hand, find it in `C:\sp\work\native` (each file is named by its hash), put your
+version under the same name into `C:\sp\work\overrides` (any size) and run the `pack` step again;
+rebuilding keeps it. The pack is made from your own copy of the game: keep it for your own use.
 
 ## Repository layout
 

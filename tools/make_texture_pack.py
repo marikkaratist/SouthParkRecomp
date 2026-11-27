@@ -17,8 +17,16 @@ Steps:
            the texture is padded the way the game samples it (wrap, mirror or clamp) so tiling
            textures stay seamless, colour under transparent pixels is bled in from the
            neighbours so edges get no halo, and one-bit alpha stays one-bit.
+           Small textures (both sides up to --prescale-max, 32 by default) are first doubled
+           with nearest-neighbour: to the model a one-texel detail such as a pupil in a 32x32
+           portrait looks like noise and is smoothed away, a 2x2 block survives. The result is
+           brought back down to --scale.
   pack     writes rt64.json (textures matched by their RT64 hash) and mod.json, then runs
            RT64's texture_packer to make the .rtz.
+
+Hand-made fixes: put a PNG named after the texture's hash into work/overrides (find the hash
+in work/native, where every texture is saved at its original size under its hash). Any size
+works; the pack uses it instead of the upscaled one, and rebuilding keeps it.
 
 The pack is made from your own copy of the game and is meant for your own use.
 """
@@ -192,7 +200,7 @@ def run_esrgan(esrgan, model, scale, src, dst):
     subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
 
 
-def cmd_upscale(work, esrgan, model, scale, min_size):
+def cmd_upscale(work, esrgan, model, scale, min_size, prescale_max):
     index = json.loads((work / "textures.json").read_text())
     stage_rgb, stage_a = work / "stage_rgb", work / "stage_alpha"
     out_rgb, out_a, hd = work / "up_rgb", work / "up_alpha", work / "hd"
@@ -201,7 +209,7 @@ def cmd_upscale(work, esrgan, model, scale, min_size):
         d.mkdir(parents=True)
     hd.mkdir(exist_ok=True)
 
-    alpha_kind = {}
+    alpha_kind, prescaled = {}, set()
     for h, meta in index.items():
         rgba = np.array(Image.open(work / "native" / f"{h}.png").convert("RGBA"))
         if min(rgba.shape[:2]) < min_size:
@@ -212,6 +220,10 @@ def cmd_upscale(work, esrgan, model, scale, min_size):
         for axis, clamp, mirror in ((1, meta["clamp_s"], meta["mirror_s"]), (0, meta["clamp_t"], meta["mirror_t"])):
             rgb = pad_axis(rgb, axis, clamp, mirror)
             a = pad_axis(a, axis, clamp, mirror)
+        if max(rgba.shape[:2]) <= prescale_max:
+            prescaled.add(h)
+            rgb = rgb.repeat(2, 0).repeat(2, 1)
+            a = a.repeat(2, 0).repeat(2, 1)
         Image.fromarray(rgb, "RGB").save(stage_rgb / f"{h}.png")
         if alpha_kind[h] != "opaque":
             Image.fromarray(np.stack([a, a, a], -1), "RGB").save(stage_a / f"{h}.png")
@@ -220,17 +232,26 @@ def cmd_upscale(work, esrgan, model, scale, min_size):
     if any(k != "opaque" for k in alpha_kind.values()):
         run_esrgan(esrgan, model, scale, stage_a, out_a)
 
-    crop = PAD * scale
     for h, kind in alpha_kind.items():
-        rgb = np.array(Image.open(out_rgb / f"{h}.png").convert("RGB"))[crop:-crop, crop:-crop]
+        meta = index[h]
+        size = (meta["width"] * scale, meta["height"] * scale)
+        crop = PAD * scale * (2 if h in prescaled else 1)
+
+        def load(folder, mode):
+            im = Image.open(folder / f"{h}.png").convert(mode)
+            im = im.crop((crop, crop, im.width - crop, im.height - crop))
+            return np.array(im if im.size == size else im.resize(size, Image.LANCZOS))
+
+        rgb = load(out_rgb, "RGB")
         if kind == "opaque":
             a = np.full(rgb.shape[:2], 255, np.uint8)
         else:
-            a = np.array(Image.open(out_a / f"{h}.png").convert("L"))[crop:-crop, crop:-crop]
+            a = load(out_a, "L")
             if kind == "binary":
                 a = np.where(a >= 128, 255, 0).astype(np.uint8)
         Image.fromarray(np.dstack([rgb, a]), "RGBA").save(hd / f"{h}.png")
-    print(f"upscaled {len(alpha_kind)} textures x{scale} into {hd}")
+    print(f"upscaled {len(alpha_kind)} textures x{scale} into {hd} "
+          f"({len(prescaled)} small ones doubled first)")
 
 
 # --- pack ---------------------------------------------------------------------------------------
@@ -242,8 +263,12 @@ def cmd_pack(work, packer, name):
     (pack / "textures").mkdir(parents=True)
     entries = []
     versions = set()
+    overrides = work / "overrides"
+    overridden = {p.stem for p in overrides.glob("*.png")} if overrides.is_dir() else set()
+    for unknown in sorted(overridden - index.keys()):
+        print(f"warning: overrides/{unknown}.png matches no dumped texture; skipped")
     for h, meta in sorted(index.items()):
-        src = work / "hd" / f"{h}.png"
+        src = (overrides if h in overridden else work / "hd") / f"{h}.png"
         if not src.exists():
             continue
         shutil.copy2(src, pack / "textures" / f"{h}.png")
@@ -279,7 +304,7 @@ def cmd_pack(work, packer, name):
     if not made.exists():
         sys.exit("texture_packer made no .rtz; see its output above")
     made.replace(target)
-    print(f"{len(entries)} textures in {target}")
+    print(f"{len(entries)} textures in {target} ({len(overridden & index.keys())} from overrides)")
 
 
 def main():
@@ -290,6 +315,9 @@ def main():
     ap.add_argument("--scale", type=int, default=4, choices=[2, 3, 4])
     ap.add_argument("--model", default="realesrgan-x4plus-anime")
     ap.add_argument("--min-size", type=int, default=8, help="leave textures smaller than this alone")
+    ap.add_argument("--prescale-max", type=int, default=32,
+                    help="double textures up to this size with nearest-neighbour before the model "
+                         "so one-texel details survive (0: never)")
     ap.add_argument("--esrgan", type=Path, default=DEFAULT_ESRGAN)
     ap.add_argument("--packer", type=Path, default=DEFAULT_PACKER)
     ap.add_argument("--name", default="southpark_hd")
@@ -300,7 +328,7 @@ def main():
             sys.exit("decode needs the dump folder")
         cmd_decode(a.dump, a.work)
     if a.step in ("upscale", "all"):
-        cmd_upscale(a.work, a.esrgan, a.model, a.scale, a.min_size)
+        cmd_upscale(a.work, a.esrgan, a.model, a.scale, a.min_size, a.prescale_max)
     if a.step in ("pack", "all"):
         cmd_pack(a.work, a.packer, a.name)
 
